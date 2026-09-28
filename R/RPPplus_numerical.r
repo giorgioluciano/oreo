@@ -7,6 +7,7 @@
 #' @param L  number of measurement points in the extracted data
 #' @param k step size for numerical differentiation
 #' @param num_mode numerical method
+#' @param norm_rate if TRUE (default) the trajectory uses the published normalized rate coordinate [gamma, gamma_dot/omega, sigma], so Gpp_t is in Pa. FALSE reproduces oreo 1.0 (Gpp_t = G''_t/omega).
 #'
 #' @return a list with the following data frame
 #'         spp_data_in= the data frame with the data
@@ -32,7 +33,7 @@
 
 
         
-Rpp_num <- function(time_wave,resp_wave,L,k,num_mode)
+Rpp_num <- function(time_wave,resp_wave,L,k,num_mode,norm_rate=TRUE)
 {
 
 #Calculate the frequency of the response
@@ -108,6 +109,12 @@ Rpp_num <- function(time_wave,resp_wave,L,k,num_mode)
 	}
 	
 
+	# normalized rate coordinate [gamma, gamma_dot/omega, sigma] (oreo 1.1)
+	if (norm_rate) {
+		rd[,2] = rd[,2]/omega
+		rdd[,2] = rdd[,2]/omega
+		rddd[,2] = rddd[,2]/omega
+	}
 	rd_x_rdd = data.frame(rd[,2]*rdd[,3]-rd[,3]*rdd[,2],rd[,3]*rdd[,1]-rd[,1]*rdd[,3],rd[,1]*rdd[,2]-rd[,2]*rdd[,1])
 	rd_x_rd_x_rdd = data.frame(rd[,2]*rd_x_rdd[,3]-rd[,3]*rd_x_rdd[,2],rd[,3]*rd_x_rdd[,1]-rd[,1]*rd_x_rdd[,3],rd[,1]*rd_x_rdd[,2]-rd[,2]*rd_x_rdd[,1]) 
 	mag_rd = sqrt(rd[,1]^2+rd[,2]^2+rd[,3]^2) 
@@ -131,7 +138,7 @@ Rpp_num <- function(time_wave,resp_wave,L,k,num_mode)
 	delta_t = atan(tan_delta_t)+pi*is_Gp_t_neg 
 	delta_t_dot = -1*(rd_tn[,3]*(rddd_tn[,3] + rd_tn[,3]))/((rdd_tn[,3])^2+(rd_tn[,3])^2) 
 
-	disp_stress = resp_wave[,3]-(Gp_t*resp_wave[,1]+Gpp_t*resp_wave[,2]/omega) 
+	disp_stress = if (norm_rate) resp_wave[,3]-(Gp_t*resp_wave[,1]+Gpp_t*resp_wave[,2]/omega) else resp_wave[,3]-(Gp_t*resp_wave[,1]+Gpp_t*resp_wave[,2])
 	eq_strain_est = resp_wave[,1]-disp_stress/Gp_t 
 
 	spp_data_in = data.frame(time_wave,resp_wave)

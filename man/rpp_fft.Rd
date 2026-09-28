@@ -4,7 +4,7 @@
 \alias{rpp_fft}
 \title{SPP Analysis via fourier}
 \usage{
-rpp_fft(time_wave, resp_wave, L, omega, M, p)
+rpp_fft(time_wave, resp_wave, L, omega, M, p, norm_rate = TRUE)
 }
 \arguments{
 \item{time_wave}{Lx1 vector of time at each measurement point}
@@ -18,6 +18,8 @@ rpp_fft(time_wave, resp_wave, L, omega, M, p)
 \item{M}{number of harmonics for stress}
 
 \item{p}{number of cycles}
+
+\item{norm_rate}{if TRUE (default) the trajectory uses the published normalized rate coordinate [gamma, gamma_dot/omega, sigma], so Gpp_t is in Pa. FALSE reproduces oreo 1.0 (Gpp_t = G''_t/omega).}
 }
 \value{
 a list with the following data frame

@@ -4,7 +4,7 @@
 \alias{Rpp_num}
 \title{SPP Analysis via numerical differentiation}
 \usage{
-Rpp_num(time_wave, resp_wave, L, k, num_mode)
+Rpp_num(time_wave, resp_wave, L, k, num_mode, norm_rate = TRUE)
 }
 \arguments{
 \item{time_wave}{Lx1 vector of time at each measurement point}
@@ -16,6 +16,8 @@ Rpp_num(time_wave, resp_wave, L, k, num_mode)
 \item{k}{step size for numerical differentiation}
 
 \item{num_mode}{numerical method}
+
+\item{norm_rate}{if TRUE (default) the trajectory uses the published normalized rate coordinate [gamma, gamma_dot/omega, sigma], so Gpp_t is in Pa. FALSE reproduces oreo 1.0 (Gpp_t = G''_t/omega).}
 }
 \value{
 a list with the following data frame

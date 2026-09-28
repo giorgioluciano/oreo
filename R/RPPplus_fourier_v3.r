@@ -8,6 +8,7 @@
 #' @param omega frequency of oscilation (rad/s)
 #' @param M number of harmonics for stress
 #' @param p number of cycles
+#' @param norm_rate if TRUE (default) the trajectory uses the published normalized rate coordinate [gamma, gamma_dot/omega, sigma], so Gpp_t is in Pa. FALSE reproduces oreo 1.0 (Gpp_t = G''_t/omega).
 #'
 #' @return a list with the following data frame
 #'         spp_data_in= the data frame with the data
@@ -31,7 +32,7 @@
 
 
 
-rpp_fft<- function(time_wave,resp_wave,L,omega,M,p){
+rpp_fft<- function(time_wave,resp_wave,L,omega,M,p,norm_rate=TRUE){
 
 time_wave_o <- time_wave
 
@@ -125,7 +126,7 @@ for (n in seq(1,1,2))
     Recon_Wave[,1] = Recon_Wave[,1] + An_n[p*n+1]*cos(n*omega*time_wave_new) + Bn_n[p*n+1]*sin(n*omega*time_wave_new)
     Recon_Wave_dot[,1] = Recon_Wave_dot[,1] - n*omega*An_n[p*n+1]*sin(n*omega*time_wave_new) + n*omega*Bn_n[p*n+1]*cos(n*omega*time_wave_new)
     Recon_Wave_ddot[,1] = Recon_Wave_ddot[,1] - n^2*omega^2*An_n[p*n+1]*cos(n*omega*time_wave_new) - n^2*omega^2*Bn_n[p*n+1]*sin(n*omega*time_wave_new)
-    Recon_Wave_dddot[,1] = Recon_Wave_dddot[,1] + n^3*omega^3*An_n[p*n+1]*cos(n*omega*time_wave_new) - n^3*omega^3*Bn_n[p*n+1]*sin(n*omega*time_wave_new)
+    Recon_Wave_dddot[,1] = Recon_Wave_dddot[,1] + n^3*omega^3*An_n[p*n+1]*sin(n*omega*time_wave_new) - n^3*omega^3*Bn_n[p*n+1]*cos(n*omega*time_wave_new)
 	}
 
 #Find fourier series for rate
@@ -134,7 +135,7 @@ for (n in seq(1,1,2) )
     Recon_Wave[,2] = Recon_Wave[,2] + An_r[p*n+1]*cos(n*omega*time_wave_new)+ Bn_r[p*n+1]*sin(n*omega*time_wave_new)
     Recon_Wave_dot[,2] = Recon_Wave_dot[,2] - n*omega*An_r[p*n+1]*sin(n*omega*time_wave_new) + n*omega*Bn_r[p*n+1]*cos(n*omega*time_wave_new)
     Recon_Wave_ddot[,2] = Recon_Wave_ddot[,2] - n^2*omega^2*An_r[p*n+1]*cos(n*omega*time_wave_new) - n^2*omega^2*Bn_r[p*n+1]*sin(n*omega*time_wave_new)
-    Recon_Wave_dddot[,2] = Recon_Wave_dddot[,2] + n^3*omega^3*An_r[p*n+1]*cos(n*omega*time_wave_new) - n^3*omega^3*Bn_r[p*n+1]*sin(n*omega*time_wave_new)
+    Recon_Wave_dddot[,2] = Recon_Wave_dddot[,2] + n^3*omega^3*An_r[p*n+1]*sin(n*omega*time_wave_new) - n^3*omega^3*Bn_r[p*n+1]*cos(n*omega*time_wave_new)
 	}
 
 #Find fourier series for results
@@ -148,6 +149,15 @@ for (n in seq(1,M,2))
 	}
 
 rd = Recon_Wave_dot
+
+# --- PATCH: use the published normalized rate coordinate [gamma, gamma_dot/omega, sigma] ---
+# so that Gpp_t is returned in Pa. Set norm_rate = FALSE to reproduce oreo 1.0 / SPPplus v2 output.
+if (norm_rate) {
+  Recon_Wave_dot[,2]   = Recon_Wave_dot[,2]/omega
+  Recon_Wave_ddot[,2]  = Recon_Wave_ddot[,2]/omega
+  Recon_Wave_dddot[,2] = Recon_Wave_dddot[,2]/omega
+  rd = Recon_Wave_dot
+}
 rdd = Recon_Wave_ddot
 rddd = Recon_Wave_dddot
 
@@ -190,7 +200,9 @@ delta_t = atan(tan_delta_t)+pi*is_Gp_t_neg
 delta_t_dot = -1*(rd_tn[,3]*((rddd_tn[,3] + 
     rd_tn[,3]))/((rdd_tn[,3])^2+(rd_tn[,3])^2))
 
-disp_stress = Recon_Wave[,3]-(Gp_t*Recon_Wave[,1]+Gpp_t*Recon_Wave[,2]/omega)
+# PATCH: with normalized Gpp_t (Pa) the viscous term is Gpp_t*gamma_dot/omega;
+# with raw-rate Gpp_t it must be Gpp_t*gamma_dot (no extra 1/omega).
+disp_stress = if (norm_rate) Recon_Wave[,3]-(Gp_t*Recon_Wave[,1]+Gpp_t*Recon_Wave[,2]/omega) else Recon_Wave[,3]-(Gp_t*Recon_Wave[,1]+Gpp_t*Recon_Wave[,2])
 eq_strain_est = Recon_Wave[,1]-disp_stress/Gp_t
 
 spp_data_in = data.frame(time_wave,resp_wave)
