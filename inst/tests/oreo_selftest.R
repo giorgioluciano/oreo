@@ -20,6 +20,13 @@
 #   T4  LVE benchmark with the numerical-differentiation route, Rpp_num().
 #   T5  Nonlinear signal: Rpp_num() agrees with rpp_fft().
 #   T6  Smoke test on the example dataset shipped with the package.
+#   T7  Phase-shifted strain, gamma = g0 sin(w t + phi), rpp_fft(): the internal
+#       phase alignment (Delta) must recover the analytical reference.
+#       phi = 2.2 rad exercises the "Delta + pi" branch; phi = pi/2 is the
+#       common "strain starts as a cosine" case.
+#   T8  Same phase-shifted signal with Rpp_num() (no internal shift).
+#   T9  Three cycles (p = 3) plus phase shift, rpp_fft().
+#   T10 Three cycles plus phase shift, Rpp_num() (looped and standard modes).
 ###############################################################################
 
 suppressPackageStartupMessages(library(oreo))
@@ -146,6 +153,75 @@ check("T5 num vs fft", "Gp_t",      relerr(o5$Gp_t,      o3$Gp_t),      1e-3)
 check("T5 num vs fft", "Gpp_t",     relerr(o5$Gpp_t,     o3$Gpp_t),     1e-3)
 check("T5 num vs fft", "Gp_t_dot",  relerr(o5$Gp_t_dot,  o3$Gp_t_dot),  1e-2)
 check("T5 num vs fft", "Gpp_t_dot", relerr(o5$Gpp_t_dot, o3$Gpp_t_dot), 1e-2)
+
+## Helper: sample the nonlinear signal at shifted time tau = t + phi/w
+## (strain = g0 sin(w t + phi)); returns the input frame and the reference.
+make_signal <- function(t, phi) {
+  tau <- t + phi / w
+  st  <- rowSums(sapply(seq_along(nh), function(i)
+           a[i] * sin(nh[i] * w * tau) + b[i] * cos(nh[i] * w * tau)))
+  list(rw = data.frame(g0 * sin(w * tau), g0 * w * cos(w * tau), st),
+       ref_in = spp_reference(tau, w, g0, nh, a, b))
+}
+## rpp_fft() returns one cycle re-aligned so that strain = g0 sin(w tau),
+## on tau = (0:(L-1)) * 2*pi/w/L, whatever the number of cycles in the input.
+ref_fft <- ref
+
+## ------------------------------------------------------------------ T7 ----
+phi <- 2.2
+s7  <- make_signal(tt, phi)
+o7  <- call_fft(tt, s7$rw, L, w, 15, TRUE)$spp_data_out
+check("T7 fft phase 2.2", "strain realigned to sine", relerr(o7$strain, g0 * sin(w * tt)), 1e-8)
+check("T7 fft phase 2.2", "Gp_t vs analytic",      relerr(o7$Gp_t,      ref_fft$Gp),    1e-6)
+check("T7 fft phase 2.2", "Gpp_t vs analytic",     relerr(o7$Gpp_t,     ref_fft$Gpp),   1e-6)
+check("T7 fft phase 2.2", "Gp_t_dot vs analytic",  relerr(o7$Gp_t_dot,  ref_fft$Gpd),   1e-6)
+check("T7 fft phase 2.2", "Gpp_t_dot vs analytic", relerr(o7$Gpp_t_dot, ref_fft$Gppd),  1e-6)
+check("T7 fft phase 2.2", "G_speed vs analytic",   relerr(o7$G_speed,   ref_fft$speed), 1e-6)
+check("T7 fft phase 2.2", "disp_stress vs analytic", relerr(o7$disp_stress, ref_fft$disp), 1e-6)
+
+s7c <- make_signal(tt, pi / 2)
+o7c <- call_fft(tt, s7c$rw, L, w, 15, TRUE)$spp_data_out
+check("T7 fft cosine", "strain realigned to sine", relerr(o7c$strain, g0 * sin(w * tt)), 1e-8)
+check("T7 fft cosine", "Gp_t vs analytic",       relerr(o7c$Gp_t,     ref_fft$Gp),  1e-6)
+check("T7 fft cosine", "Gp_t_dot vs analytic",   relerr(o7c$Gp_t_dot, ref_fft$Gpd), 1e-6)
+
+## ------------------------------------------------------------------ T8 ----
+o8 <- call_num(tt, s7$rw, L, 1, 2, TRUE)$spp_data_out
+r8 <- s7$ref_in                                  # reference at the input times
+check("T8 num phase 2.2", "Gp_t vs analytic",      relerr(o8$Gp_t,      r8$Gp),   1e-4)
+check("T8 num phase 2.2", "Gpp_t vs analytic",     relerr(o8$Gpp_t,     r8$Gpp),  1e-4)
+check("T8 num phase 2.2", "Gp_t_dot vs analytic",  relerr(o8$Gp_t_dot,  r8$Gpd),  1e-2)
+check("T8 num phase 2.2", "Gpp_t_dot vs analytic", relerr(o8$Gpp_t_dot, r8$Gppd), 1e-2)
+check("T8 num phase 2.2", "disp_stress vs analytic", relerr(o8$disp_stress, r8$disp), 1e-3)
+
+## ------------------------------------------------------------------ T9 ----
+pc  <- 3; Lp <- pc * L
+ttp <- (0:(Lp - 1)) * 2 * pi / w / L              # three full cycles
+s9  <- make_signal(ttp, phi)
+o9  <- (if (has_norm) rpp_fft(ttp, s9$rw, L = Lp, omega = w, M = 15, p = pc, norm_rate = TRUE)
+        else rpp_fft(ttp, s9$rw, L = Lp, omega = w, M = 15, p = pc))$spp_data_out
+## output: Lp points over ONE cycle -> reference on the matching fine grid
+tau9 <- (0:(Lp - 1)) * 2 * pi / w / Lp
+r9   <- spp_reference(tau9, w, g0, nh, a, b)
+check("T9 fft 3 cycles", "strain realigned to sine", relerr(o9$strain, g0 * sin(w * tau9)), 1e-8)
+check("T9 fft 3 cycles", "Gp_t vs analytic",      relerr(o9$Gp_t,      r9$Gp),    1e-6)
+check("T9 fft 3 cycles", "Gpp_t vs analytic",     relerr(o9$Gpp_t,     r9$Gpp),   1e-6)
+check("T9 fft 3 cycles", "Gp_t_dot vs analytic",  relerr(o9$Gp_t_dot,  r9$Gpd),   1e-6)
+check("T9 fft 3 cycles", "Gpp_t_dot vs analytic", relerr(o9$Gpp_t_dot, r9$Gppd),  1e-6)
+check("T9 fft 3 cycles", "disp_stress vs analytic", relerr(o9$disp_stress, r9$disp), 1e-6)
+
+## ----------------------------------------------------------------- T10 ----
+r10 <- s9$ref_in
+o10 <- call_num(ttp, s9$rw, Lp, 1, 2, TRUE)$spp_data_out
+check("T10 num 3 cyc loop", "Gp_t vs analytic",      relerr(o10$Gp_t,      r10$Gp),   1e-4)
+check("T10 num 3 cyc loop", "Gpp_t vs analytic",     relerr(o10$Gpp_t,     r10$Gpp),  1e-4)
+check("T10 num 3 cyc loop", "Gp_t_dot vs analytic",  relerr(o10$Gp_t_dot,  r10$Gpd),  1e-2)
+check("T10 num 3 cyc loop", "Gpp_t_dot vs analytic", relerr(o10$Gpp_t_dot, r10$Gppd), 1e-2)
+o10s <- call_num(ttp, s9$rw, Lp, 1, 1, TRUE)$spp_data_out
+inn  <- 10:(Lp - 10)                              # standard mode: skip one-sided ends
+check("T10 num 3 cyc std", "Gp_t vs analytic (interior)",     relerr(o10s$Gp_t[inn],     r10$Gp[inn]),   1e-4)
+check("T10 num 3 cyc std", "Gpp_t vs analytic (interior)",    relerr(o10s$Gpp_t[inn],    r10$Gpp[inn]),  1e-4)
+check("T10 num 3 cyc std", "Gp_t_dot vs analytic (interior)", relerr(o10s$Gp_t_dot[inn], r10$Gpd[inn]),  1e-2)
 
 ## ------------------------------------------------------------------ T6 ----
 ok6 <- tryCatch({

@@ -19,7 +19,8 @@
   so `Gpp_t` is returned in Pa. In oreo 1.0 `Gpp_t` was `G''_t/omega`.
   Use `norm_rate = FALSE` to reproduce the oreo 1.0 convention.
 * New self-test: `source(system.file("tests", "oreo_selftest.R", package = "oreo"))`
-  checks the implementation against exact analytical results (26 checks).
+  checks the implementation against exact analytical results (54 checks,
+  including phase-shifted strain and multi-cycle input).
 * `Rpp_plot_v3.r` restored to the CRAN 1.0 version (the GitHub copy contained a
   syntax error that prevented installation from source).
 
